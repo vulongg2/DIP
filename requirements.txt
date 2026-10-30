@@ -1,0 +1,23 @@
+# Thư viện Thị giác máy tính & Nhận diện
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+
+# Xử lý đồ thị Topology & Tính toán khoa học
+networkx>=3.0
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.2.0
+
+# Giao diện Web Dashboard & Đồ họa
+streamlit>=1.30.0
+matplotlib>=3.7.0
+
+# Đọc và xuất Báo cáo Word
+python-docx>=1.1.0
+
+# Đọc luồng video nâng cao (nếu dùng YouTube Live stream)
+vidgear[core]>=0.3.0
+yt_dlp>=2024.0.0
+
+# ONNX Runtime (Chạy model ReID yolo26n-reid.onnx)
+onnxruntime>=1.16.0
