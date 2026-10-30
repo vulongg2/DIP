@@ -159,3 +159,4 @@ Hệ thống vận hành mượt mà vượt ngưỡng thời gian thực (> 30 
 ## 👥 Nhóm Tác Giả & Liên Hệ
 * **Đồ án:** Xử Lý Ảnh Số (Digital Image Processing)
 * **Mã đồ án:** `CVFP26BCPPRJC008`
+* **Tác giả: ** Cao Tiến Duy, Vũ Hoàng Long và Nguyễn Đức Hoàng Anh
