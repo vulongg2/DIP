@@ -1,0 +1,39 @@
+{
+  "description": "Cấu hình Topology đồ thị không - thời gian hệ thống giám sát liên camera trong nhà",
+  "nodes": [
+    {
+      "id": "Cam_1",
+      "name": "Entrance (Khu vực cửa)",
+      "zone_id": 1,
+      "coords": [100, 200]
+    },
+    {
+      "id": "Cam_2",
+      "name": "Hallway (Hành lang chính)",
+      "zone_id": 2,
+      "coords": [300, 200]
+    },
+    {
+      "id": "Cam_3",
+      "name": "Office (Phòng làm việc)",
+      "zone_id": 3,
+      "coords": [500, 200]
+    }
+  ],
+  "edges": [
+    {
+      "source": "Cam_1",
+      "target": "Cam_2",
+      "min_sec": 0.5,
+      "max_sec": 60.0,
+      "distance_m": 10.0
+    },
+    {
+      "source": "Cam_2",
+      "target": "Cam_3",
+      "min_sec": 0.5,
+      "max_sec": 60.0,
+      "distance_m": 12.0
+    }
+  ]
+}

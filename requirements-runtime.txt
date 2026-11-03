@@ -1,0 +1,24 @@
+# ==============================================================================
+# MTMCT-Vision Runtime Dependencies
+# ==============================================================================
+
+# Core Computer Vision & Object Tracking
+ultralytics>=8.0.0
+opencv-python>=4.8.0
+
+# Spatial-Temporal Graph & Scientific Computing
+networkx>=3.0
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.2.0
+
+# Dashboard & Visualization
+streamlit>=1.30.0
+matplotlib>=3.7.0
+pandas>=2.0.0
+
+# ONNX Runtime Inference
+onnxruntime>=1.16.0
+
+# Document & Report Generation
+python-docx>=1.1.0
