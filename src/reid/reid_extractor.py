@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
-from ultralytics.trackers.utils.reid import ReID
+import onnxruntime as ort
 
 from .custom_reid_net import CustomReIDNet
 
@@ -33,24 +33,24 @@ def resolve_model_path(filename):
 
 
 class ReIDExtractor:
-    def __init__(self, backend="custom", model_path="custom_reid_net.pth", device=None):
+    def __init__(self, backend="onnx", model_path="yolo26n-reid.onnx", device=None):
         self.backend = backend
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
         if self.backend == "custom":
-            print(f"[*] Khởi tạo Customized ReID Model (Metric Learning + BNNeck) trên {self.device}...")
+            print(f"[*] Khoi tao Customized ReID Model (Metric Learning + BNNeck) tren {self.device}...")
             self.model = CustomReIDNet(embedding_dim=512, pretrained=True).to(self.device)
             
-            resolved_ckpt = resolve_model_path(model_path)
+            resolved_ckpt = resolve_model_path(model_path if model_path.endswith('.pth') else "custom_reid_net.pth")
             if os.path.exists(resolved_ckpt):
                 try:
                     state_dict = torch.load(resolved_ckpt, map_location=self.device)
                     self.model.load_state_dict(state_dict, strict=False)
-                    print(f"[*] Đã nạp thành công trọng số customized weights từ {resolved_ckpt}!")
+                    print(f"[*] Nap thanh cong trong so customized weights tu {resolved_ckpt}!")
                 except Exception as e:
-                    print(f"[!] Chú ý: Dùng weights mặc định do không nạp được {resolved_ckpt}: {e}")
+                    print(f"[!] Chu y: Dung weights mac dinh do khong nap duoc {resolved_ckpt}: {e}")
             else:
-                print(f"[!] Không tìm thấy file trọng số {model_path}, khởi tạo với ImageNet weights.")
+                print(f"[!] Khong tim thay file trong so {model_path}, khoi tao voi ImageNet weights.")
 
             self.model.eval()
 
@@ -65,8 +65,17 @@ class ReIDExtractor:
             resolved_onnx = resolve_model_path(model_path if model_path.endswith('.onnx') else "yolo26n-reid.onnx")
             if not os.path.exists(resolved_onnx):
                 raise FileNotFoundError(f"Không tìm thấy model ReID ONNX: {resolved_onnx}")
-            self.encoder = ReID(resolved_onnx)
-            self.input_size = (128, 256)
+            
+            # Khởi tạo ONNX Runtime Session an toàn
+            available_providers = ort.get_available_providers()
+            providers = [p for p in ['CUDAExecutionProvider', 'CPUExecutionProvider'] if p in available_providers]
+            if not providers:
+                providers = ['CPUExecutionProvider']
+            self.ort_session = ort.InferenceSession(resolved_onnx, providers=providers)
+            
+            self.input_name = self.ort_session.get_inputs()[0].name
+            self.output_name = self.ort_session.get_outputs()[0].name
+            print(f"[*] Nap thanh cong ReID ONNX Model tu {resolved_onnx} (Provider: {self.ort_session.get_providers()[0]})")
 
     def extract_crop_feature(self, crop_bgr):
         """
@@ -91,13 +100,19 @@ class ReIDExtractor:
                 return None
         else:
             try:
-                features = self.encoder._extract_features([crop_bgr])
-                if features is not None and len(features) > 0:
-                    feat = np.ascontiguousarray(features[0], dtype=np.float32)
-                    norm = np.linalg.norm(feat)
-                    if norm > 1e-8:
-                        feat = feat / norm
-                    return feat
+                # Preprocessing cho ONNX ReID model (128x256, RGB, ImageNet mean/std)
+                resized = cv2.resize(crop_bgr, (128, 256))
+                rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+                norm = (rgb - mean) / std
+                blob = np.transpose(norm, (2, 0, 1))[np.newaxis, ...].astype(np.float32)
+                
+                out = self.ort_session.run([self.output_name], {self.input_name: blob})[0][0]
+                norm_val = np.linalg.norm(out)
+                if norm_val > 1e-8:
+                    out = out / norm_val
+                return out
             except Exception as e:
                 print(f"[!] Lỗi trích xuất feature (ONNX): {e}")
                 return None
