@@ -139,6 +139,8 @@ def parse_args():
                         help="Tự động ghi hình phiên demo và lưu thành file video MP4 vào outputs/recordings/")
     parser.add_argument("--no_record", action="store_false", dest="record",
                         help="Tắt chế độ tự động ghi hình video")
+    parser.add_argument("--record_fps", type=float, default=8.0,
+                        help="FPS cho bo ghi hinh video demo (mac dinh: 8.0 fps khop voi toc do xu ly thuc te)")
     return parser.parse_args()
 
 
@@ -366,9 +368,10 @@ def main():
         rec_filepath = os.path.join(record_dir, rec_filename)
         # Khung hình ghép 2x2 gồm 4 ô (480x360) -> Kích thước video: 960x720
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video_writer = cv2.VideoWriter(rec_filepath, fourcc, 15.0, (960, 720))
+        rec_fps = getattr(args, "record_fps", 8.0)
+        video_writer = cv2.VideoWriter(rec_filepath, fourcc, rec_fps, (960, 720))
         print("=" * 70)
-        print(f"[*] DA BAT CHE DO TU DONG GHI HINH VIDEO DEMO!")
+        print(f"[*] DA BAT CHE DO TU DONG GHI HINH VIDEO DEMO (FPS: {rec_fps})!")
         print(f"    --> Video se duoc luu tai: {rec_filepath}")
         print(f"    --> Phim tat: '1'/'2'/'3'=Xoay goc Cam 90 do | 'v'=Ghi hinh | 'r'=Reset | 'q'=Thoat")
         print("=" * 70)
