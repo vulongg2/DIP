@@ -114,7 +114,7 @@ def parse_args():
                         action="store_true", default=False, 
                         help="Ép buộc dùng chế độ giả lập 3 camera từ 1 webcam (bỏ qua bước hỏi IP)")
     parser.add_argument("--model", type=str, default="yolov8n.pt", help="YOLO model (yolov8n.pt để chạy mượt 3 luồng)")
-    parser.add_argument("--sim_thresh", type=float, default=0.45, help="Ngưỡng tương đồng ReID (mặc định 0.45 để thích nghi ánh sáng lệch giữa các phòng)")
+    parser.add_argument("--sim_thresh", type=float, default=0.28, help="Ngưỡng tương đồng ReID (mặc định 0.28 kết hợp CLAHE triệt tiêu lệch sáng liên camera)")
     parser.add_argument("--reid_backend", type=str, default="custom", choices=["custom", "onnx"],
                         help="Backend ReID: 'custom' hoặc 'onnx'")
     return parser.parse_args()

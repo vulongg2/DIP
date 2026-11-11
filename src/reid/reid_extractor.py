@@ -98,11 +98,23 @@ class ReIDExtractor:
     def extract_crop_feature(self, crop_bgr):
         """
         Biến một bức ảnh cắt người (crop_bgr) thành Vector đặc trưng 512 chiều chuẩn hóa L2.
+        - Áp dụng tiền xử lý DIP: Cân bằng lược đồ mức xám cục bộ thích nghi (CLAHE) trên kênh L
+          để triệt tiêu độ lệch sáng khi người đi từ phòng sáng sang hành lang tối / đèn cảm biến.
         - Input : crop_bgr (np.ndarray, hệ màu BGR, kích thước [h, w, 3] bất kỳ).
         - Output: feat_np  (np.ndarray, shape=(512,), dtype=float32, độ dài ||f||_2 = 1.0).
         """
         if crop_bgr is None or crop_bgr.size == 0:
             return None
+
+        # Tiền xử lý DIP (Chương 3): CLAHE chuẩn hóa độ tương phản và ánh sáng
+        try:
+            lab = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2LAB)
+            l, a, b = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            cl = clahe.apply(l)
+            crop_bgr = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
+        except Exception:
+            pass
 
         if self.backend == "custom":
             try:

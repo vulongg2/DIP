@@ -49,11 +49,10 @@ class CameraTopology:
         self.graph.add_node("Cam_2", name="Hallway (Hanh lang)", zone_id=2, coords=(300, 200))
         self.graph.add_node("Cam_3", name="Office (Van phong)", zone_id=3, coords=(500, 200))
 
-        # Ràng buộc thời gian di chuyển (giây) giữa các camera liền kề:
-        # min_sec: thời gian tối thiểu (0.2s để chấp nhận cả khi 2 cam gần nhau)
-        # max_sec: thời gian tối đa (300s = 5 phút để thoải mái đi lại giữa các phòng)
-        self.graph.add_edge("Cam_1", "Cam_2", min_sec=0.2, max_sec=300.0, distance_m=10.0)
-        self.graph.add_edge("Cam_2", "Cam_3", min_sec=0.2, max_sec=300.0, distance_m=12.0)
+        # 2. Thêm các cạnh (Edges) kèm ràng buộc thời gian di chuyển [min_sec, max_sec] (giây)
+        # Đi từ Cửa vào (Cam_1) sang Hành lang (Cam_2) mất tối thiểu 0.5s và tối đa 60s
+        self.graph.add_edge("Cam_1", "Cam_2", min_sec=0.5, max_sec=60.0, distance_m=10.0)
+        self.graph.add_edge("Cam_2", "Cam_3", min_sec=0.5, max_sec=60.0, distance_m=12.0)
 
     def _load_from_json(self, config_path):
         """Đọc cấu trúc đỉnh (nodes) và cạnh (edges) từ file JSON cấu hình."""
