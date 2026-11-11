@@ -425,9 +425,9 @@ def main():
                     verbose=False
                 )
 
-                if results[0].boxes is not None and len(results[0].boxes) > 0:
+                if results[0].boxes is not None and len(results[0].boxes) > 0 and results[0].boxes.id is not None:
                     boxes = results[0].boxes.xyxy.cpu().numpy()
-                    track_ids = results[0].boxes.id.int().cpu().numpy() if results[0].boxes.id is not None else None
+                    track_ids = results[0].boxes.id.int().cpu().numpy()
 
                     for i, box in enumerate(boxes):
                         x1, y1 = max(0, int(box[0])), max(0, int(box[1]))
@@ -435,7 +435,7 @@ def main():
                         if (x2 - x1) < 15 or (y2 - y1) < 30:
                             continue
 
-                        track_id = int(track_ids[i]) if track_ids is not None else (i + 1)
+                        track_id = int(track_ids[i])
                         crop = frame[y1:y2, x1:x2] if (x2 > x1 and y2 > y1) else None
 
                         gid, color, is_new, sim_score = global_mgr.match_or_create(
