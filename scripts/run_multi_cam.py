@@ -114,7 +114,7 @@ def parse_args():
                         action="store_true", default=False, 
                         help="Ép buộc dùng chế độ giả lập 3 camera từ 1 webcam (bỏ qua bước hỏi IP)")
     parser.add_argument("--model", type=str, default="yolov8n.pt", help="YOLO model (yolov8n.pt để chạy mượt 3 luồng)")
-    parser.add_argument("--sim_thresh", type=float, default=0.65, help="Ngưỡng tương đồng ReID")
+    parser.add_argument("--sim_thresh", type=float, default=0.45, help="Ngưỡng tương đồng ReID (mặc định 0.45 để thích nghi ánh sáng lệch giữa các phòng)")
     parser.add_argument("--reid_backend", type=str, default="custom", choices=["custom", "onnx"],
                         help="Backend ReID: 'custom' hoặc 'onnx'")
     return parser.parse_args()
@@ -357,24 +357,28 @@ def main():
                     persist=True,
                     tracker=tracker_cfg,
                     classes=[0],
-                    conf=0.40,
+                    conf=0.25,      # Hạ ngưỡng conf xuống 0.25 để bắt nhạy cả khi đèn hành lang mờ/bật trễ
                     imgsz=480,
                     device=device,
                     verbose=False
                 )
 
-                if results[0].boxes.id is not None:
+                if results[0].boxes is not None and len(results[0].boxes) > 0:
                     boxes = results[0].boxes.xyxy.cpu().numpy()
-                    track_ids = results[0].boxes.id.int().cpu().numpy()
+                    track_ids = results[0].boxes.id.int().cpu().numpy() if results[0].boxes.id is not None else None
 
-                    for box, track_id in zip(boxes, track_ids):
+                    for i, box in enumerate(boxes):
                         x1, y1 = max(0, int(box[0])), max(0, int(box[1]))
                         x2, y2 = min(w, int(box[2])), min(h, int(box[3]))
+                        if (x2 - x1) < 15 or (y2 - y1) < 30:
+                            continue
+
+                        track_id = int(track_ids[i]) if track_ids is not None else (i + 1)
                         crop = frame[y1:y2, x1:x2] if (x2 > x1 and y2 > y1) else None
 
                         gid, color, is_new, sim_score = global_mgr.match_or_create(
                             cam_id=cam_id,
-                            local_track_id=int(track_id),
+                            local_track_id=track_id,
                             crop_bgr=crop,
                             box=(x1, y1, x2, y2),
                             current_time=current_time
