@@ -37,7 +37,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Multi-Camera Tracking & Floorplan Demo")
     parser.add_argument("--sources", nargs="+", default=["0"], 
                         help="Danh sách nguồn camera: 3 số (1 2 3), 3 link IP camera (http://...:8080/video), hoặc 3 file video")
-    parser.add_argument("--virtual_mode", action="store_true", default=False, 
+    parser.add_argument("--virtual_mode", "--virtual-split", "--virtual_split", dest="virtual_mode",
+                        action="store_true", default=False, 
                         help="Ép buộc dùng chế độ giả lập 3 camera từ 1 webcam")
     parser.add_argument("--model", type=str, default="yolov8n.pt", help="YOLO model (yolov8n.pt để chạy mượt 3 luồng)")
     parser.add_argument("--sim_thresh", type=float, default=0.65, help="Ngưỡng tương đồng ReID")
