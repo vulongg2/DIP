@@ -133,6 +133,8 @@ def parse_args():
                         help="Goc xoay Cam 2 (0, 90, 180, 270 do)")
     parser.add_argument("--rot_cam3", type=int, default=0, choices=[0, 90, 180, 270],
                         help="Goc xoay Cam 3 (0, 90, 180, 270 do)")
+    parser.add_argument("--reid_backend", type=str, default="custom", choices=["custom", "onnx"],
+                        help="Backend ReID: 'custom' hoac 'onnx'")
     parser.add_argument("--record", action="store_true", default=True, 
                         help="Tự động ghi hình phiên demo và lưu thành file video MP4 vào outputs/recordings/")
     parser.add_argument("--no_record", action="store_false", dest="record",
