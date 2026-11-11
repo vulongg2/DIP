@@ -206,6 +206,11 @@ class GlobalIdentityManager:
         # =====================================================================
         # TRƯỜNG HỢP 3: RA QUYẾT ĐỊNH (GÁN LẠI ID CŨ HOẶC CẤP ID MỚI)
         # =====================================================================
+        if best_gid is not None:
+            print(f"[*] {cam_id} Track_{local_track_id}: So khop voi Global ID {best_gid} dat Sim={best_sim:.2f} (Nguong: {self.similarity_thresh:.2f})")
+        else:
+            print(f"[*] {cam_id} Track_{local_track_id}: Khong co ung vien hop le (Gallery co {len(self.gallery)} IDs)")
+
         if best_gid is not None and best_sim >= self.similarity_thresh:
             # ---> KHỚP THÀNH CÔNG VỚI NGƯỜI ĐÃ CÓ TRONG GALLERY (REID_MATCH)
             gid = best_gid
