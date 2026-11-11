@@ -117,6 +117,10 @@ def parse_args():
     parser.add_argument("--sim_thresh", type=float, default=0.28, help="Ngưỡng tương đồng ReID (mặc định 0.28 kết hợp CLAHE triệt tiêu lệch sáng liên camera)")
     parser.add_argument("--reid_backend", type=str, default="custom", choices=["custom", "onnx"],
                         help="Backend ReID: 'custom' hoặc 'onnx'")
+    parser.add_argument("--record", action="store_true", default=True, 
+                        help="Tự động ghi hình phiên demo và lưu thành file video MP4 vào outputs/recordings/")
+    parser.add_argument("--no_record", action="store_false", dest="record",
+                        help="Tắt chế độ tự động ghi hình video")
     return parser.parse_args()
 
 
@@ -317,6 +321,27 @@ def main():
     window_name = "Multi-Camera Indoor Person Tracking & 2D Floor Plan (Level 3 Demo)"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
+    # =========================================================================
+    # BỘ TỰ ĐỘNG GHI HÌNH VIDEO DEMO (AUTO VIDEO RECORDER)
+    # Tự động xuất toàn bộ giao diện 4 ô thành video MP4 chất lượng cao vào outputs/recordings/
+    # =========================================================================
+    is_recording = getattr(args, "record", True)
+    video_writer = None
+    rec_filepath = None
+    if is_recording:
+        record_dir = "outputs/recordings"
+        os.makedirs(record_dir, exist_ok=True)
+        rec_filename = f"multicam_demo_{time.strftime('%Y%m%d_%H%M%S')}.mp4"
+        rec_filepath = os.path.join(record_dir, rec_filename)
+        # Khung hình ghép 2x2 gồm 4 ô (480x360) -> Kích thước video: 960x720
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video_writer = cv2.VideoWriter(rec_filepath, fourcc, 15.0, (960, 720))
+        print("=" * 70)
+        print(f"[*] DA BAT CHE DO TU DONG GHI HINH VIDEO DEMO!")
+        print(f"    --> Video se duoc luu tai: {rec_filepath}")
+        print(f"    --> Phim tat: 'v'=Bat/Tam dung ghi | 'q'=Luu video va Thoat")
+        print("=" * 70)
+
     try:
         while True:
             current_time = time.time()
@@ -405,6 +430,15 @@ def main():
             bot_row = np.hstack((annotated_frames[2], annotated_frames[3]))
             full_display = np.vstack((top_row, bot_row))
 
+            # Vẽ biểu tượng nhấp nháy REC và ghi khung hình vào file MP4
+            if is_recording and video_writer is not None:
+                # Nhấp nháy chấm đỏ REC mỗi 0.5 giây
+                if int(time.time() * 2) % 2 == 0:
+                    cv2.circle(full_display, (full_display.shape[1] - 85, 20), 7, (0, 0, 255), -1)
+                    cv2.putText(full_display, "REC", (full_display.shape[1] - 70, 25),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                video_writer.write(full_display)
+
             cv2.imshow(window_name, full_display)
 
             key = cv2.waitKey(1) & 0xFF
@@ -413,8 +447,18 @@ def main():
             elif key == ord("r"):
                 global_mgr.reset()
                 print("[*] Da reset Global Manager!")
+            elif key == ord("v"):
+                is_recording = not is_recording
+                print(f"[*] Che do ghi hinh video: {'BAT' if is_recording else 'TAM DUNG'}")
 
     finally:
+        if video_writer is not None:
+            video_writer.release()
+            print("=" * 70)
+            print(f"[*] DA LUU VIDEO DEMO THANH CONG!")
+            print(f"    --> Duong dan: {os.path.abspath(rec_filepath)}")
+            print("=" * 70)
+
         if is_virtual:
             cap.release()
         else:
