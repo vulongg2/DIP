@@ -18,7 +18,10 @@ from .custom_reid_net import CustomReIDNet
 
 
 def resolve_model_path(filename):
-    """Tự động tìm đường dẫn file trọng số trong thư mục gốc, models/, hoặc models/checkpoints/."""
+    """
+    Tự động tìm đường dẫn file trọng số trong thư mục gốc, models/, hoặc models/checkpoints/.
+    Bỏ qua các file con trỏ Git LFS bị lỗi (<10KB khi người dùng tải bằng Download ZIP).
+    """
     candidates = [
         filename,
         os.path.join("models", filename),
@@ -30,6 +33,12 @@ def resolve_model_path(filename):
     for p in candidates:
         abs_p = os.path.abspath(p)
         if os.path.exists(abs_p):
+            try:
+                if os.path.getsize(abs_p) < 10240:
+                    print(f"[!] Bo qua file Git LFS pointer (<10KB): {abs_p}")
+                    continue
+            except OSError:
+                pass
             return abs_p
     return filename
 
@@ -48,15 +57,15 @@ class ReIDExtractor:
             self.model = CustomReIDNet(embedding_dim=512, pretrained=True).to(self.device)
             
             resolved_ckpt = resolve_model_path(model_path if model_path.endswith('.pth') else "custom_reid_net.pth")
-            if os.path.exists(resolved_ckpt):
+            if os.path.exists(resolved_ckpt) and os.path.getsize(resolved_ckpt) >= 10240:
                 try:
                     state_dict = torch.load(resolved_ckpt, map_location=self.device)
                     self.model.load_state_dict(state_dict, strict=False)
                     print(f"[*] Nap thanh cong trong so customized weights tu {resolved_ckpt}!")
                 except Exception as e:
-                    print(f"[!] Chu y: Dung weights mac dinh do khong nap duoc {resolved_ckpt}: {e}")
+                    print(f"[!] Chu y: Dung weights ImageNet mac dinh do khong nap duoc {resolved_ckpt}: {e}")
             else:
-                print(f"[!] Khong tim thay file trong so {model_path}, khoi tao voi ImageNet weights.")
+                print(f"[*] Khoi tao CustomReIDNet voi trong so ImageNet Pretrained (san sang hoat dong).")
 
             self.model.eval()  # Chuyển mạng sang chế độ suy luận (cố định BatchNorm & tắt Dropout)
 
@@ -72,8 +81,8 @@ class ReIDExtractor:
             ])
         else:
             resolved_onnx = resolve_model_path(model_path if model_path.endswith('.onnx') else "yolo26n-reid.onnx")
-            if not os.path.exists(resolved_onnx):
-                raise FileNotFoundError(f"Khong tim thay model ReID ONNX: {resolved_onnx}")
+            if not os.path.exists(resolved_onnx) or os.path.getsize(resolved_onnx) < 10240:
+                raise FileNotFoundError(f"Khong tim thay model ReID ONNX hop le: {resolved_onnx}")
             
             # Khởi tạo phiên chạy ONNX Runtime
             available_providers = ort.get_available_providers()
