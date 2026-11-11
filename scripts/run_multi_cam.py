@@ -106,6 +106,17 @@ def prompt_3_camera_sources():
     return sources, False
 
 
+def apply_rotation(img, angle_deg):
+    """Xoay khung hinh theo cac goc 90, 180, 270 do."""
+    if angle_deg == 90:
+        return cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    elif angle_deg == 180:
+        return cv2.rotate(img, cv2.ROTATE_180)
+    elif angle_deg == 270:
+        return cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return img
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Multi-Camera Tracking & Floorplan Demo")
     parser.add_argument("--sources", nargs="+", default=None, 
@@ -114,9 +125,14 @@ def parse_args():
                         action="store_true", default=False, 
                         help="Ép buộc dùng chế độ giả lập 3 camera từ 1 webcam (bỏ qua bước hỏi IP)")
     parser.add_argument("--model", type=str, default="yolov8n.pt", help="YOLO model (yolov8n.pt để chạy mượt 3 luồng)")
-    parser.add_argument("--sim_thresh", type=float, default=0.28, help="Ngưỡng tương đồng ReID (mặc định 0.28 kết hợp CLAHE triệt tiêu lệch sáng liên camera)")
-    parser.add_argument("--reid_backend", type=str, default="custom", choices=["custom", "onnx"],
-                        help="Backend ReID: 'custom' hoặc 'onnx'")
+    parser.add_argument("--sim_thresh", type=float, default=0.25,
+                        help="Nguong tuong dong ReID (mac dinh 0.25 ket hop CLAHE)")
+    parser.add_argument("--rot_cam1", type=int, default=0, choices=[0, 90, 180, 270],
+                        help="Goc xoay Cam 1 (0, 90, 180, 270 do)")
+    parser.add_argument("--rot_cam2", type=int, default=0, choices=[0, 90, 180, 270],
+                        help="Goc xoay Cam 2 (0, 90, 180, 270 do)")
+    parser.add_argument("--rot_cam3", type=int, default=0, choices=[0, 90, 180, 270],
+                        help="Goc xoay Cam 3 (0, 90, 180, 270 do)")
     parser.add_argument("--record", action="store_true", default=True, 
                         help="Tự động ghi hình phiên demo và lưu thành file video MP4 vào outputs/recordings/")
     parser.add_argument("--no_record", action="store_false", dest="record",
@@ -268,6 +284,11 @@ def draw_floorplan(width, height, active_positions, topology):
 def main():
     args = parse_args()
     device = 0 if torch.cuda.is_available() else "cpu"
+    cam_rotations = {
+        "Cam_1": getattr(args, "rot_cam1", 0),
+        "Cam_2": getattr(args, "rot_cam2", 0),
+        "Cam_3": getattr(args, "rot_cam3", 0),
+    }
 
     # Nếu người dùng truyền sẵn --virtual_mode trên dòng lệnh
     if args.virtual_mode:
@@ -339,7 +360,7 @@ def main():
         print("=" * 70)
         print(f"[*] DA BAT CHE DO TU DONG GHI HINH VIDEO DEMO!")
         print(f"    --> Video se duoc luu tai: {rec_filepath}")
-        print(f"    --> Phim tat: 'v'=Bat/Tam dung ghi | 'q'=Luu video va Thoat")
+        print(f"    --> Phim tat: '1'/'2'/'3'=Xoay goc Cam 90 do | 'v'=Ghi hinh | 'r'=Reset | 'q'=Thoat")
         print("=" * 70)
 
     try:
@@ -362,7 +383,13 @@ def main():
                     ret, fr = strm.read()
                     cam_id = f"Cam_{i+1}"
                     if ret and fr is not None:
-                        cam_frames[cam_id] = (cv2.resize(fr, (480, 360)), zone_names[i])
+                        rot = cam_rotations.get(cam_id, 0)
+                        if rot != 0:
+                            fr = apply_rotation(fr, rot)
+                        label = zone_names[i]
+                        if rot != 0:
+                            label += f" [{rot}*]"
+                        cam_frames[cam_id] = (cv2.resize(fr, (480, 360)), label)
 
             annotated_frames = []
 
@@ -444,6 +471,15 @@ def main():
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
+            elif key == ord("1"):
+                cam_rotations["Cam_1"] = (cam_rotations["Cam_1"] + 90) % 360
+                print(f"[*] Cam 1 da xoay goc: {cam_rotations['Cam_1']} do")
+            elif key == ord("2"):
+                cam_rotations["Cam_2"] = (cam_rotations["Cam_2"] + 90) % 360
+                print(f"[*] Cam 2 da xoay goc: {cam_rotations['Cam_2']} do")
+            elif key == ord("3"):
+                cam_rotations["Cam_3"] = (cam_rotations["Cam_3"] + 90) % 360
+                print(f"[*] Cam 3 da xoay goc: {cam_rotations['Cam_3']} do")
             elif key == ord("r"):
                 global_mgr.reset()
                 print("[*] Da reset Global Manager!")
