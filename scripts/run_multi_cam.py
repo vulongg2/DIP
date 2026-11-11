@@ -144,23 +144,28 @@ def parse_args():
 
 class ThreadedCameraStream:
     """
-    Đọc frame trong một background thread riêng biệt để tránh tình trạng buffer lag
-    khi nhận luồng video qua Wi-Fi / RTSP / HTTP từ 3 điện thoại IP Camera.
+    Doc luong camera trong background thread voi che do Zero-Buffer Latency:
+    - Lien tuc cap.grab() de hut sach tat ca cac frame/packet trong buffer mang cua FFmpeg.
+    - Chi giai ma (retrieve) khung hinh moi nhat khi he thong can, triet tieu hoan toan do tre hinh.
     """
     def __init__(self, src):
         self.src = src
         self.src_val = int(src) if str(src).isdigit() else str(src)
         print(f"[*] Dang ket noi toi luong camera: {self.src_val} ...")
+        
+        # Thiet lap nobuffer cho RTSP/HTTP stream de dong bo thoi gian thuc
+        if isinstance(self.src_val, str) and ("://" in self.src_val):
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|max_delay;0"
+
         self.cap = cv2.VideoCapture(self.src_val)
-        # Giảm buffer size xuống 1 để luôn lấy frame mới nhất từ IP Camera (chống trễ hình)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.grabbed, self.frame = self.cap.read()
+        self.lock = threading.Lock()
+        self.grabbed = self.cap.grab()
         if self.grabbed:
             print(f"    [+] Ket noi THANH CONG: {self.src_val}")
         else:
             print(f"    [!] CANH BAO: Chua nhan duoc hinh tu {self.src_val} (kiem tra lai IP/Wi-Fi)")
         self.started = False
-        self.read_lock = threading.Lock()
         self.thread = None
 
     def start(self):
@@ -175,28 +180,31 @@ class ThreadedCameraStream:
         while self.started:
             if not self.cap.isOpened():
                 time.sleep(0.5)
-                # Tự động thử kết nối lại nếu IP cam bị rớt mạng tạm thời
                 self.cap.open(self.src_val)
                 continue
-            grabbed, frame = self.cap.read()
-            with self.read_lock:
-                self.grabbed = grabbed
+            with self.lock:
+                grabbed = self.cap.grab()
                 if grabbed:
-                    self.frame = frame
-            time.sleep(0.005)
+                    self.grabbed = True
+            time.sleep(0.001)
 
     def read(self):
-        with self.read_lock:
-            if self.frame is not None and self.grabbed:
-                return True, self.frame.copy()
+        if not self.started or not self.cap.isOpened():
+            return False, None
+        with self.lock:
+            if self.grabbed:
+                ret, frame = self.cap.retrieve()
+                if ret and frame is not None:
+                    return True, frame
             return False, None
 
     def release(self):
         self.started = False
         if self.thread is not None and self.thread.is_alive():
             self.thread.join(timeout=0.5)
-        if self.cap.isOpened():
-            self.cap.release()
+        with self.lock:
+            if self.cap.isOpened():
+                self.cap.release()
 
 
 class VirtualMultiCamSimulator:
