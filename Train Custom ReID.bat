@@ -6,7 +6,7 @@ echo ======================================================================
 echo  HUAN LUYEN / FINE-TUNE MO HINH CUSTOM REID (METRIC LEARNING)
 echo ======================================================================
 
-set "PYTHON_EXE=.venv\Scripts\python.exe"
+set "PYTHON_EXE=C:\Users\Windows\AppData\Local\Programs\Python\Python311\python.exe"
 if not exist "%PYTHON_EXE%" (
     set "PYTHON_EXE=python"
 )

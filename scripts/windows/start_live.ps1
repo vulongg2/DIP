@@ -1,8 +1,10 @@
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location -LiteralPath $repoRoot
 
-$pythonExe = Join-Path $repoRoot '.venv\Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $pythonExe)) {
+$sysPy = "C:\Users\Windows\AppData\Local\Programs\Python\Python311\python.exe"
+if (Test-Path -LiteralPath $sysPy) {
+    $pythonExe = $sysPy
+} else {
     $pythonExe = "python"
 }
 

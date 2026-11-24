@@ -135,6 +135,40 @@ class GlobalIdentityManager:
         self.event_log.clear()
         self.next_global_id = 1
 
+    def _find_best_candidate(self, feat, cam_id, local_track_id, current_time, exclude_gid=None):
+        """Tìm Global ID phù hợp nhất trong Gallery thỏa mãn cả 3 tầng lọc."""
+        best_gid = None
+        best_sim = -1.0
+        if feat is None or len(self.gallery) == 0:
+            return best_gid, best_sim
+
+        for gid, identity in self.gallery.items():
+            if exclude_gid is not None and gid == exclude_gid:
+                continue
+            time_delta = current_time - identity.last_seen_time
+
+            # Bỏ qua các danh tính "bóng ma" thoáng qua (phản chiếu kính / false positive < 4 frame đã tắt > 3s)
+            if identity.total_detections < 4 and time_delta > 3.0:
+                continue
+
+            # [TẦNG LỌC 1] Ràng buộc loại trừ không gian (Spatial Mutual Exclusion)
+            if identity.last_cam == cam_id and time_delta < 1.5:
+                if identity.last_local_id != local_track_id:
+                    continue
+
+            # [TẦNG LỌC 2] Ràng buộc đồ thị Topology không gian - thời gian
+            if self.topology is not None:
+                if not self.topology.is_transition_valid(identity.last_cam, cam_id, time_delta):
+                    continue
+
+            # [TẦNG LỌC 3] Đo độ tương đồng Cosine Similarity
+            sim = self.extractor.cosine_similarity(feat, identity.feature)
+            if sim > best_sim:
+                best_sim = sim
+                best_gid = gid
+
+        return best_gid, best_sim
+
     def match_or_create(self, cam_id, local_track_id, crop_bgr, box, current_time=None):
         """
         Hàm cốt lõi nhất của MTMCT:
@@ -162,9 +196,39 @@ class GlobalIdentityManager:
             gid = self.local_to_global[key]
             identity = self.gallery[gid]
             identity.add_trajectory_point(cam_id, box, current_time, local_track_id=local_track_id)
-            
+
+            # Tự hiệu chỉnh sớm (Grace-period Self-Correction):
+            # Nếu track mới tạo ở các frame đầu bị dính mép/khuất một phần (Sim thấp tạm thời),
+            # khi đối tượng bước trọn vào khung hình (frame thứ 5 và 10), tự động kiểm tra lại xem
+            # có khớp mạnh với một Global ID cũ hợp lệ từ camera trước đó không để gộp lại ID.
+            if identity.total_detections in (5, 10) and len(self.gallery) > 1:
+                feat_check = self.extractor.extract_crop_feature(crop_bgr)
+                if feat_check is not None:
+                    cand_gid, cand_sim = self._find_best_candidate(
+                        feat_check, cam_id, local_track_id, current_time, exclude_gid=gid
+                    )
+                    merge_thresh = max(self.similarity_thresh + 0.12, 0.40)
+                    if cand_gid is not None and cand_gid < gid and cand_sim >= merge_thresh:
+                        target_ident = self.gallery[cand_gid]
+                        target_ident.update_feature(feat_check, alpha=0.80)
+                        target_ident.add_trajectory_point(cam_id, box, current_time, local_track_id=local_track_id)
+                        self.local_to_global[key] = cand_gid
+                        if gid not in self.local_to_global.values():
+                            self.gallery.pop(gid, None)
+                        self.event_log.append({
+                            "time": current_time,
+                            "event": "REID_MATCH",
+                            "global_id": cand_gid,
+                            "cam_id": cam_id,
+                            "local_track_id": local_track_id,
+                            "similarity": cand_sim
+                        })
+                        print(f"[*] {cam_id} Track_{local_track_id}: Tu hieu chinh ID {gid} -> Global ID {cand_gid} (Sim={cand_sim:.2f})")
+                        return cand_gid, target_ident.color, False, cand_sim
+                    identity.update_feature(feat_check, alpha=0.80)
+
             # Định kỳ mỗi 15 frame mới chạy mạng CNN ReID 1 lần để cập nhật EMA đặc trưng (tiết kiệm GPU/CPU)
-            if identity.total_detections % 15 == 0:
+            elif identity.total_detections % 15 == 0:
                 feat = self.extractor.extract_crop_feature(crop_bgr)
                 if feat is not None:
                     identity.update_feature(feat, alpha=0.90)
@@ -175,33 +239,7 @@ class GlobalIdentityManager:
         # TRƯỜNG HỢP 2: Local Track MỚI XUẤT HIỆN -> Trích xuất ReID & Tìm kiếm trong Gallery
         # =====================================================================
         feat = self.extractor.extract_crop_feature(crop_bgr)
-        best_gid = None
-        best_sim = -1.0
-
-        if feat is not None and len(self.gallery) > 0:
-            for gid, identity in self.gallery.items():
-                time_delta = current_time - identity.last_seen_time
-                
-                # [TẦNG LỌC 1] RÀNG BUỘC LOẠI TRỪ KHÔNG GIAN (SPATIAL MUTUAL EXCLUSION):
-                # Một người không thể phân thân thành 2 BBox khác nhau trong cùng 1 khung hình!
-                # Nếu Global ID `gid` vừa mới được nhìn thấy ở chính `cam_id` này (trong vòng 1.5s)
-                # nhưng lại đang gắn với một `last_local_id` khác -> Chắc chắn là 2 người khác nhau!
-                if identity.last_cam == cam_id and time_delta < 1.5:
-                    if identity.last_local_id != local_track_id:
-                        continue
-
-                # [TẦNG LỌC 2] RÀNG BUỘC ĐỒ THỊ TOPOLOGY KHÔNG GIAN - THỜI GIAN:
-                # Kiểm tra xem việc di chuyển từ `identity.last_cam` sang `cam_id` sau `time_delta` giây
-                # có hợp lý trên sơ đồ phòng ốc hay không.
-                if self.topology is not None:
-                    if not self.topology.is_transition_valid(identity.last_cam, cam_id, time_delta):
-                        continue  # Bỏ qua ứng viên vi phạm luật di chuyển giữa các khu vực
-
-                # [TẦNG LỌC 3] ĐO ĐỘ TƯƠNG ĐỒNG NGOẠI HÌNH COSINE SIMILARITY:
-                sim = self.extractor.cosine_similarity(feat, identity.feature)
-                if sim > best_sim:
-                    best_sim = sim
-                    best_gid = gid
+        best_gid, best_sim = self._find_best_candidate(feat, cam_id, local_track_id, current_time)
 
         # =====================================================================
         # TRƯỜNG HỢP 3: RA QUYẾT ĐỊNH (GÁN LẠI ID CŨ HOẶC CẤP ID MỚI)
